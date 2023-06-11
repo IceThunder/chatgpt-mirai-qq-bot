@@ -62,7 +62,8 @@ class BingAdapter(BotAdapter, DrawingAPI):
         try:
             async for final, response in self.bot.ask_stream(prompt=prompt,
                                                              conversation_style=self.conversation_style,
-                                                             wss_link=config.bing.wss_link):
+                                                             wss_link=config.bing.wss_link,
+                                                             locale="zh-cn"):
                 if not response:
                     continue
 
@@ -129,8 +130,8 @@ class BingAdapter(BotAdapter, DrawingAPI):
         logger.debug(f"[Bing Image] Prompt: {prompt}")
         try:
             async with ImageGenAsync(
-                    next((cookie['value'] for cookie in self.bot.cookies if cookie['name'] == '_U'), None),
-                    False
+                    all_cookies=self.bot.chat_hub.cookies,
+                    quiet=True
             ) as image_generator:
                 images = await image_generator.get_images(prompt)
 
@@ -156,4 +157,13 @@ class BingAdapter(BotAdapter, DrawingAPI):
                 return GraiaImage(data_bytes=await resp.read())
 
     async def preset_ask(self, role: str, text: str):
-        yield None  # Bing 不使用预设功能
+        if role.endswith('bot') or role in {'assistant', 'bing'}:
+            logger.debug(f"[预设] 响应：{text}")
+            yield text
+        else:
+            logger.debug(f"[预设] 发送：{text}")
+            item = None
+            async for item in self.ask(text): ...
+            if item:
+                logger.debug(f"[预设] Chatbot 回应：{item}")
+
