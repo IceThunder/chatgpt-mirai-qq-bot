@@ -279,6 +279,26 @@ class G4fAuths(BaseModel):
     """支持的模型"""
 
 
+class MistralAIAPI(BaseModel):
+    api_endpoint: str
+    """自定义 Mistral API 的接入点"""
+    api_key: str
+    """自定义 Mistral API 的Key"""
+    model: Optional[str] = "mistral-large-latest"
+    """使用的默认模型，此选项优先级最高"""
+    safe_prompt: True
+    """安全对话过滤"""
+    proxy: Optional[str] = None
+    """可选的代理地址，留空则检测系统代理"""
+    temperature: float = 0.7
+    top_p: float = 1.0
+
+
+class MistralAuths(BaseModel):
+    accounts: List[MistralAIAPI] = []
+    """MistralAI的账号列表"""
+
+
 class SlackAppAccessToken(BaseModel):
     channel_id: str
     """负责与机器人交互的 Channel ID"""
@@ -563,6 +583,7 @@ class Config(BaseModel):
     slack: SlackAuths = SlackAuths()
     xinghuo: XinghuoAuths = XinghuoAuths()
     gpt4free: G4fAuths = G4fAuths()
+    mistral: MistralAuths = MistralAuths()
 
     # === Response Settings ===
     text_to_image: TextToImage = TextToImage()
