@@ -286,7 +286,7 @@ class MistralAIAPI(BaseModel):
     """自定义 Mistral API 的Key"""
     model: Optional[str] = "mistral-large-latest"
     """使用的默认模型，此选项优先级最高"""
-    safe_prompt: True
+    safe_prompt: bool = True
     """安全对话过滤"""
     proxy: Optional[str] = None
     """可选的代理地址，留空则检测系统代理"""
