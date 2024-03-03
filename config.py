@@ -279,23 +279,34 @@ class G4fAuths(BaseModel):
     """支持的模型"""
 
 
-class MistralAIAPI(BaseModel):
-    api_endpoint: str
-    """自定义 Mistral API 的接入点"""
+class MistralAIParams(BaseModel):
+    temperature: float = 0.7
+    max_tokens: int = 4000
+    top_p: float = 1.0
+    min_tokens: int = 1000
+    compressed_session: bool = False
+    compressed_tokens: int = 1000
+    stream: bool = True
+
+
+class MistralAIAPIKey(BaseModel):
     api_key: str
     """自定义 Mistral API 的Key"""
     model: Optional[str] = "mistral-large-latest"
     """使用的默认模型，此选项优先级最高"""
-    safe_prompt: bool = True
-    """安全对话过滤"""
     proxy: Optional[str] = None
     """可选的代理地址，留空则检测系统代理"""
-    temperature: float = 0.7
-    top_p: float = 1.0
 
 
 class MistralAuths(BaseModel):
-    accounts: List[MistralAIAPI] = []
+    api_endpoint: Optional[str] = None
+    """自定义 Mistral API 的接入点"""
+    temperature: float = 0.7
+    top_p: float = 1.0
+
+    mistral_params: MistralAIParams = MistralAIParams()
+
+    accounts: List[MistralAIAPIKey] = []
     """MistralAI的账号列表"""
 
 

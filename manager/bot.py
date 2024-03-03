@@ -29,7 +29,7 @@ import utils.network as network
 from adapter.gpt4free import g4f_helper
 from chatbot.chatgpt import ChatGPTBrowserChatbot
 from config import OpenAIAuthBase, OpenAIAPIKey, Config, BingCookiePath, BardCookiePath, YiyanCookiePath, ChatGLMAPI, \
-    PoeCookieAuth, SlackAppAccessToken, XinghuoCookiePath, G4fModels, MistralAIAPI
+    PoeCookieAuth, SlackAppAccessToken, XinghuoCookiePath, G4fModels, MistralAIAPIKey
 from exceptions import NoAvailableBotException, APIKeyNoFundsError
 
 
@@ -77,8 +77,8 @@ class BotManager:
     gpt4free: List[G4fModels]
     """gpt4free Account Infos"""
 
-    mistral: List[MistralAIAPI]
-    """MistralAIAPI Account Infos"""
+    mistral: List[MistralAIAPIKey]
+    """MistralAIAPIKey Account Infos"""
 
     roundrobin: Dict[str, itertools.cycle] = {}
 
@@ -201,7 +201,7 @@ class BotManager:
                 "chatglm-api": "chatglm-api",
                 "xinghuo-cookie": "xinghuo",
                 "gpt4free": self.bots["gpt4free"][0].alias if len(self.bots["gpt4free"]) > 0 else "",
-                "mistral": "mistral-api",
+                "mistral": "mistral-large-latest",
             }
 
             self.config.response.default_ai = next(
