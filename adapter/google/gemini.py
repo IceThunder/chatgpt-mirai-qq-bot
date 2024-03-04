@@ -25,8 +25,8 @@ class GeminiAIChatbot:
         self.conversation: dict[str, list[dict]] = {
             "default": [
                 {
-                    "role": "system",
-                    "content": "你是 Gemini，现在需要用中文进行交流。",
+                    "role": "model",
+                    "parts": [{"text": "你是 Gemini，现在需要用中文进行交流。"}],
                 },
             ],
         }
@@ -51,7 +51,7 @@ class GeminiAIChatbot:
 
     def add_to_conversation(self, message: str, role: str, session_id: str = "default") -> None:
         if role and message is not None:
-            self.conversation[session_id].append({"role": role, "content": message})
+            self.conversation[session_id].append({"role": role, "parts": [{"text": message}]})
         else:
             logger.warning("出现错误！返回消息为空，不添加到会话。")
             raise ValueError("出现错误！返回消息为空，不添加到会话。")
@@ -77,7 +77,7 @@ class GeminiAIChatbot:
                     num_tokens += len(encoding.encode(value))
                     if key == "name":
                         num_tokens += tokens_per_name
-        num_tokens += 3  # every reply is primed with assistant
+        num_tokens += 3  # every reply is primed with model
         return num_tokens
 
     def get_max_tokens(self, session_id: str, model: str) -> int:
@@ -107,7 +107,7 @@ class GeminiAIAPIAdapter(BotAdapter):
     def manage_conversation(self, session_id: str, prompt: str):
         if session_id not in self.bot.conversation:
             self.bot.conversation[session_id] = [
-                {"role": "system", "content": prompt}
+                {"role": "model", "parts": [{"text": prompt}]}
             ]
             self.__conversation_keep_from = 1
 
@@ -136,31 +136,30 @@ class GeminiAIAPIAdapter(BotAdapter):
         self.bot.engine = self.current_model
         self.__conversation_keep_from = 0
 
-    def construct_data(self, messages: list = None, api_key: str = None, stream: bool = True):
+    def construct_data(self, messages: list = None):
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {api_key}'
         }
         data = {
             'model': self.bot.engine,
-            'messages': messages,
-            'stream': stream,
-            'temperature': self.bot.temperature,
-            'top_p': self.bot.top_p,
-            'max_tokens': self.bot.get_max_tokens(self.session_id, self.bot.engine),
+            'contents': messages,
+            'generationConfig': {
+                'temperature': self.bot.temperature,
+                'topP': self.bot.top_p,
+                'maxOutputTokens': self.bot.get_max_tokens(self.session_id, self.bot.engine),
+            },
         }
         return headers, data
 
-    def _prepare_request(self, session_id: str = None, messages: list = None, stream: bool = False):
+    def _prepare_request(self, session_id: str = None, messages: list = None):
         self.api_info = botManager.pick('gemini')
-        api_key = self.api_info.api_key
         proxy = self.api_info.proxy
-        api_endpoint = config.gemini.api_endpoint or "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+        api_endpoint = config.gemini.api_endpoint or "https://generativelanguage.googleapis.com/v1"
 
         if not messages:
             messages = self.bot.conversation[session_id]
 
-        headers, data = self.construct_data(messages, api_key, stream)
+        headers, data = self.construct_data(messages)
 
         return proxy, api_endpoint, headers, data
 
@@ -173,12 +172,12 @@ class GeminiAIAPIAdapter(BotAdapter):
         if total_tokens is None:
             raise Exception("Response does not contain 'total_tokens'")
 
-        content = result.get('choices', [{}])[0].get('message', {}).get('content', None)
+        content = result.get('contents', [{}])[0].get('parts', [{}])[0].get('text', None)
         logger.debug(f"[Gemini-API:{self.bot.engine}] 响应：{content}")
         if content is None:
-            raise Exception("Response does not contain 'content'")
+            raise Exception("Response does not contain 'parts'")
 
-        response_role = result.get('choices', [{}])[0].get('message', {}).get('role', None)
+        response_role = result.get('contents', [{}])[0].get('role', None)
         if response_role is None:
             raise Exception("Response does not contain 'role'")
 
@@ -187,11 +186,11 @@ class GeminiAIAPIAdapter(BotAdapter):
         return content
 
     async def request(self, session_id: str = None, messages: list = None) -> str:
-        proxy, api_endpoint, headers, data = self._prepare_request(session_id, messages, stream=False)
+        proxy, api_endpoint, headers, data = self._prepare_request(session_id, messages)
 
         async with aiohttp.ClientSession() as session:
             with async_timeout.timeout(self.bot.timeout):
-                async with session.post(f'{api_endpoint}/chat/completions', headers=headers,
+                async with session.post(f'{api_endpoint}/models/{self.current_model}:generateContent?key={self.api_info.api_key}', headers=headers,
                                                     data=json.dumps(data), proxy=proxy) as resp:
                     if resp.status != 200:
                         response_text = await resp.text()
@@ -201,7 +200,7 @@ class GeminiAIAPIAdapter(BotAdapter):
                     return await self._process_response(resp, session_id)
 
     async def request_with_stream(self, session_id: str = None, messages: list = None) -> AsyncGenerator[str, None]:
-        proxy, api_endpoint, headers, data = self._prepare_request(session_id, messages, stream=True)
+        proxy, api_endpoint, headers, data = self._prepare_request(session_id, messages)
 
         async with aiohttp.ClientSession() as session:
             with async_timeout.timeout(self.bot.timeout):
@@ -235,13 +234,13 @@ class GeminiAIAPIAdapter(BotAdapter):
                             raise Exception(f"未知错误: {e}") from None
                         if 'error' in event:
                             raise Exception(f"响应错误: {event['error']}")
-                        if 'choices' in event and len(event['choices']) > 0 and 'delta' in event['choices'][0]:
-                            delta = event['choices'][0]['delta']
-                            if 'role' in delta:
-                                if delta['role'] is not None:
-                                    response_role = delta['role']
-                            if 'content' in delta:
-                                event_text = delta['content']
+                        if 'candidates' in event and len(event['candidates']) > 0:
+                            content = event['choices'][0]['content']
+                            if 'role' in content:
+                                if content['role'] is not None:
+                                    response_role = content['role']
+                            if 'text' in content:
+                                event_text = content['text']
                                 if event_text is not None:
                                     completion_text += event_text
                                     self.latest_role = response_role
@@ -256,15 +255,13 @@ class GeminiAIAPIAdapter(BotAdapter):
         if self.bot.count_tokens(session_id) > config.gemini.gemini_params.compressed_tokens:
             logger.debug('开始进行会话压缩')
 
-            filtered_data = [entry for entry in self.bot.conversation[session_id] if entry['role'] != 'system']
+            filtered_data = [entry for entry in self.bot.conversation[session_id] if entry['role'] != 'model']
             self.bot.conversation[session_id] = [entry for entry in self.bot.conversation[session_id] if
-                                                 entry['role'] not in ['assistant', 'user']]
+                                                 entry['role'] not in ['model', 'user']]
 
-            filtered_data.append(({"role": "system",
-                                   "content": "Summarize the discussion briefly in 200 words or less to use as a prompt for future context."}))
-
-            async for text in self.request_with_stream(session_id=session_id, messages=filtered_data):
-                pass
+            filtered_data.append(({"role": "model",
+                                   "parts": [{"text": "Summarize the discussion briefly in 200 words or less to use as a prompt for future context."}]
+                                   }))
 
             token_count = self.bot.count_tokens(self.session_id, self.bot.engine)
             logger.debug(f"压缩会话后使用 token 数：{token_count}")
@@ -277,8 +274,6 @@ class GeminiAIAPIAdapter(BotAdapter):
         if config.gemini.gemini_params.compressed_session:
             await self.compressed_session(self.session_id)
 
-        event_time = None
-
         try:
             if self.bot.engine not in self.supported_models:
                 logger.warning(f"当前模型非官方支持的模型，请注意控制台输出，当前使用的模型为 {self.bot.engine}")
@@ -286,18 +281,7 @@ class GeminiAIAPIAdapter(BotAdapter):
             self.bot.add_to_conversation(prompt, "user", session_id=self.session_id)
             start_time = time.time()
 
-            full_response = ''
-
-            if config.gemini.gemini_params.stream:
-                async for resp in self.request_with_stream(session_id=self.session_id):
-                    full_response += resp
-                    yield full_response
-
-                token_count = self.bot.count_tokens(self.session_id, self.bot.engine)
-                logger.debug(f"[Gemini-API:{self.bot.engine}] 响应：{full_response}")
-                logger.debug(f"[Gemini-API:{self.bot.engine}] 使用 token 数：{token_count}")
-            else:
-                yield await self.request(session_id=self.session_id)
+            yield await self.request(session_id=self.session_id)
             event_time = time.time() - start_time
             if event_time is not None:
                 logger.debug(f"[geminiAI-API:{self.bot.engine}] 接收到全部消息花费了{event_time:.2f}秒")
@@ -309,14 +293,14 @@ class GeminiAIAPIAdapter(BotAdapter):
 
     async def preset_ask(self, role: str, text: str):
         self.bot.engine = self.current_model
-        if role.endswith('bot') or role in {'assistant', 'gemini'}:
+        if role.endswith('bot') or role in {'model', 'gemini'}:
             logger.debug(f"[预设] 响应：{text}")
             yield text
-            role = 'assistant'
-        if role not in ['assistant', 'user', 'system']:
-            raise ValueError(f"预设文本有误！仅支持设定 assistant、user 或 system 的预设文本，但你写了{role}。")
+            role = 'model'
+        if role not in ['model', 'user']:
+            raise ValueError(f"预设文本有误！仅支持设定 model 或 user 的预设文本，但你写了{role}。")
         if self.session_id not in self.bot.conversation:
             self.bot.conversation[self.session_id] = []
             self.__conversation_keep_from = 0
-        self.bot.conversation[self.session_id].append({"role": role, "content": text})
+        self.bot.conversation[self.session_id].append({"role": role, "parts": [{"text": text}]})
         self.__conversation_keep_from = len(self.bot.conversation[self.session_id])
