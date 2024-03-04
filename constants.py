@@ -31,6 +31,7 @@ class LlmName(Enum):
     YiYan = "yiyan"
     ChatGLM = "chatglm-api"
     XunfeiXinghuo = "xinghuo"
+    Gemini = "gemini-pro"
 
 
 class BotPlatform(Enum):

@@ -15,6 +15,7 @@ from adapter.chatgpt.api import ChatGPTAPIAdapter
 from adapter.chatgpt.web import ChatGPTWebAdapter
 from adapter.claude.slack import ClaudeInSlackAdapter
 from adapter.google.bard import BardAdapter
+from adapter.google.gemini import GeminiAIAPIAdapter
 from adapter.gpt4free.g4f_helper import parse as g4f_parse
 from adapter.gpt4free.gpt4free import Gpt4FreeAdapter
 from adapter.ms.bing import BingAdapter
@@ -110,6 +111,8 @@ class ConversationContext:
             self.adapter = ClaudeInSlackAdapter(self.session_id)
         elif _type == LlmName.XunfeiXinghuo.value:
             self.adapter = XinghuoAdapter(self.session_id)
+        elif _type == LlmName.Gemini.value:
+            self.adapter = GeminiAIAPIAdapter(self.session_id)
         elif g4f_parse(_type):
             self.adapter = Gpt4FreeAdapter(self.session_id, g4f_parse(_type))
         else:

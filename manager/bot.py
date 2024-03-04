@@ -29,7 +29,7 @@ import utils.network as network
 from adapter.gpt4free import g4f_helper
 from chatbot.chatgpt import ChatGPTBrowserChatbot
 from config import OpenAIAuthBase, OpenAIAPIKey, Config, BingCookiePath, BardCookiePath, YiyanCookiePath, ChatGLMAPI, \
-    PoeCookieAuth, SlackAppAccessToken, XinghuoCookiePath, G4fModels
+    PoeCookieAuth, SlackAppAccessToken, XinghuoCookiePath, G4fModels, GeminiAIAPIKey
 from exceptions import NoAvailableBotException, APIKeyNoFundsError
 
 
@@ -46,6 +46,7 @@ class BotManager:
         "xinghuo-cookie": [],
         "slack-accesstoken": [],
         "gpt4free": [],
+        "gemini-api": [],
     }
     """Bot list"""
 
@@ -76,6 +77,9 @@ class BotManager:
     gpt4free: List[G4fModels]
     """gpt4free Account Infos"""
 
+    gemini: List[GeminiAIAPIKey]
+    """gemini Account Infos"""
+
     roundrobin: Dict[str, itertools.cycle] = {}
 
     def __init__(self, config: Config) -> None:
@@ -89,6 +93,7 @@ class BotManager:
         self.slack = config.slack.accounts if config.slack else []
         self.xinghuo = config.xinghuo.accounts if config.xinghuo else []
         self.gpt4free = config.gpt4free.accounts if config.gpt4free else []
+        self.gemini = config.gemini.accounts if config.gemini else []
 
         try:
             os.mkdir('data')
@@ -149,6 +154,7 @@ class BotManager:
             "chatglm-api": [],
             "slack-accesstoken": [],
             "gpt4free": [],
+            "gemini-api": [],
         }
 
         self.__setup_system_proxy()
@@ -162,7 +168,8 @@ class BotManager:
             'openai': self.handle_openai,
             'yiyan': self.login_yiyan,
             'chatglm': self.login_chatglm,
-            'gpt4free': self.login_gpt4free
+            'gpt4free': self.login_gpt4free,
+            'gemini': self.login_gemini
         }
 
         for key, login_func in login_funcs.items():
@@ -194,6 +201,7 @@ class BotManager:
                 "chatglm-api": "chatglm-api",
                 "xinghuo-cookie": "xinghuo",
                 "gpt4free": self.bots["gpt4free"][0].alias if len(self.bots["gpt4free"]) > 0 else "",
+                "gemini-api": "gemini-api",
             }
 
             self.config.response.default_ai = next(
@@ -249,6 +257,17 @@ class BotManager:
         if len(self.bots) < 1:
             logger.error("所有 Bard 账号均解析失败！")
         logger.success(f"成功解析 {len(self.bots['bard-cookie'])}/{len(self.bing)} 个 Bard 账号！")
+
+    def login_gemini(self):
+        for i, account in enumerate(self.gemini):
+            logger.info("正在解析第 {i} 个 Gemini 账号", i=i + 1)
+            if proxy := self.__check_proxy(account.proxy):
+                account.proxy = proxy
+            self.bots["gemini-api"].append(account)
+            logger.success("解析成功！", i=i + 1)
+        if len(self.bots) < 1:
+            logger.error("所有 Gemini 账号均解析失败！")
+        logger.success(f"成功解析 {len(self.bots['gemini-api'])}/{len(self.gemini)} 个 Gemini 账号！")
 
     def poe_check_auth(self, client: PoeClient) -> bool:
         try:
@@ -578,6 +597,8 @@ class BotManager:
             bot_info += f"* {LlmName.BingP.value} : 微软 New Bing (精确)\n"
         if len(self.bots['bard-cookie']) > 0:
             bot_info += f"* {LlmName.Bard.value} : Google Bard\n"
+        if len(self.bots['gemini-api']) > 0:
+            bot_info += f"* {LlmName.Gemini.value} : Google Gemini\n"
         if len(self.bots['yiyan-cookie']) > 0:
             bot_info += f"* {LlmName.YiYan.value} : 百度 文心一言\n"
         if len(self.bots['chatglm-api']) > 0:
