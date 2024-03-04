@@ -292,7 +292,7 @@ class GeminiAIParams(BaseModel):
 class GeminiAIAPIKey(BaseModel):
     api_key: str
     """自定义 Gemini API 的Key"""
-    model: Optional[str] = "mistral-large-latest"
+    model: Optional[str] = "gemini-pro"
     """使用的默认模型，此选项优先级最高"""
     proxy: Optional[str] = None
     """可选的代理地址，留空则检测系统代理"""
