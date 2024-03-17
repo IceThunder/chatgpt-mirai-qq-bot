@@ -2,8 +2,10 @@ import json
 import threading
 import time
 import asyncio
-import re
+import base64
+from io import BytesIO
 from loguru import logger
+from pydub import AudioSegment
 from quart import Quart, request, abort, make_response
 
 import lark_oapi as lark
@@ -40,6 +42,13 @@ handler = lark.EventDispatcherHandler.builder(lark.ENCRYPT_KEY, lark.VERIFICATIO
 def event():
     resp = handler.do(parse_req())
     return parse_resp(resp)
+
+
+def convert_mp3_to_amr(mp3):
+    mp3 = BytesIO(base64.b64decode(mp3))
+    amr = BytesIO()
+    AudioSegment.from_file(mp3,format="mp3").set_frame_rate(8000).set_channels(1).export(amr, format="amr", codec="libopencore_amrnb")
+    return amr
 
 
 def clear_request_dict():
