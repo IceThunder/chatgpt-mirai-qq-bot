@@ -32,15 +32,33 @@ def do_customized_event(data: lark.CustomizedEvent) -> None:
     print(lark.JSON.marshal(data))
 
 
-handler = lark.EventDispatcherHandler.builder(lark.ENCRYPT_KEY, lark.VERIFICATION_TOKEN, lark.LogLevel.DEBUG) \
-    .register_p2_im_message_receive_v1(do_p2_im_message_receive_v1) \
-    .register_p1_customized_event("message", do_customized_event) \
-    .build()
+handler = (lark.EventDispatcherHandler.builder(
+    lark.ENCRYPT_KEY,
+    lark.VERIFICATION_TOKEN,
+    lark.LogLevel.DEBUG)
+           .register_p2_im_message_receive_v1(do_p2_im_message_receive_v1)
+           .register_p1_customized_event("message", do_customized_event)
+           .build())
 
 
 @app.route("/event", methods=["POST"])
-def event():
+async def event():
     resp = handler.do(parse_req())
+    """
+    先判断event_type == im.message.receive_v1 (或者是v2的消息体)
+    msg = event.get("message")
+    幂等判断消息是否重复（通过msg.get("message_id")）
+    判断msg.get("chat_type")
+        group
+            判断@的相关处理
+            receive_id_type = "chat_id"
+        p2p
+            receive_id_type = "open_id"
+    这个receive_id_type似乎关系到后面发给谁
+    """
+
+
+
     return parse_resp(resp)
 
 
