@@ -43,4 +43,4 @@ class BotPlatform(Enum):
     TelegramBot = "telegram"
     HttpService = "http"
     WecomBot = "wecom"
-    Feishu = "feishu"
+    FeishuBot = "feishu"
