@@ -25,17 +25,15 @@ request_dic = {}
 
 
 def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
-    print(lark.JSON.marshal(data))
+    logger.debug(lark.JSON.marshal(data))
 
 
 def do_customized_event(data: lark.CustomizedEvent) -> None:
-    print(lark.JSON.marshal(data))
+    logger.debug(lark.JSON.marshal(data))
 
 
 handler = (lark.EventDispatcherHandler.builder(
-    lark.ENCRYPT_KEY,
-    lark.VERIFICATION_TOKEN,
-    lark.LogLevel.DEBUG)
+    EncryptKey, Token, lark.LogLevel.DEBUG)
            .register_p2_im_message_receive_v1(do_p2_im_message_receive_v1)
            .register_p1_customized_event("message", do_customized_event)
            .build())
@@ -56,8 +54,7 @@ async def event():
             receive_id_type = "open_id"
     这个receive_id_type似乎关系到后面发给谁
     """
-
-
+    logger.debug(resp)
 
     return parse_resp(resp)
 
