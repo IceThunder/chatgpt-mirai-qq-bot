@@ -35,6 +35,65 @@ RESPONSE_FAILED = "FAILED"
 RESPONSE_DONE = "DONE"
 
 
+class BotRequest:
+    def __init__(self, session_id, user_id, username, message, request_time):
+        self.session_id: str = session_id
+        self.user_id: str = user_id
+        self.username: str = username
+        self.message: str = message
+        self.result: ResponseResult = ResponseResult()
+        self.request_time = request_time
+        self.done: bool = False
+        """请求是否处理完毕"""
+
+    def set_result_status(self, result_status):
+        if not self.result:
+            self.result = ResponseResult()
+        self.result.result_status = result_status
+
+    def append_result(self, result_type, result):
+        with lock:
+            if result_type == "message":
+                self.result.message.append(result)
+            elif result_type == "voice":
+                self.result.voice.append(result)
+            elif result_type == "image":
+                self.result.image.append(result)
+
+
+class ResponseResult:
+    def __init__(self, message=None, voice=None, image=None, result_status=RESPONSE_SUCCESS):
+        self.result_status = result_status
+        self.message = self._ensure_list(message)
+        self.voice = self._ensure_list(voice)
+        self.image = self._ensure_list(image)
+
+    def _ensure_list(self, value):
+        if value is None:
+            return []
+        elif isinstance(value, list):
+            return value
+        else:
+            return [value]
+
+    def is_empty(self):
+        return not self.message and not self.voice and not self.image
+
+    def pop_all(self):
+        with lock:
+            self.message = []
+            self.voice = []
+            self.image = []
+
+    def to_json(self):
+        return json.dumps({
+            'result': self.result_status,
+            'message': self.message,
+            'voice': self.voice,
+            'image': self.image
+        })
+
+
 class InvalidEventException(Exception):
     def __init__(self, error_info):
         self.error_info = error_info
@@ -100,20 +159,6 @@ def decryptJson(encrypt_json):
     return json.loads(cipher.decrypt_string(encrypt_json.get('encrypt')))
 
 
-"""
-    先判断event_type == im.message.receive_v1 (或者是v2的消息体)
-    msg = event.get("message")
-    幂等判断消息是否重复（通过msg.get("message_id")）
-    判断msg.get("chat_type")
-        group
-            判断@的相关处理
-            receive_id_type = "chat_id"
-        p2p
-            receive_id_type = "open_id"
-    这个receive_id_type似乎关系到后面发给谁
-    """
-
-
 @app.route("/event", methods=["POST"])
 async def event():
     # logger.info("validate")
@@ -126,9 +171,30 @@ async def event():
 
     decrypt_json = dict_2_obj(decrypt_string)
     header = decrypt_json.header
+    event = decrypt_json.event
     if header.token != Token:
         logger.info(f"header.get(‘token’)={header.token}")
         raise InvalidEventException("invalid token")
+
+    """
+    先判断event_type == im.message.receive_v1 (或者是v2的消息体)
+    msg = event.get("message")
+    幂等判断消息是否重复（通过msg.get("message_id")）
+    判断msg.get("chat_type")
+        group
+            判断@的相关处理
+            receive_id_type = "chat_id"
+        p2p
+            receive_id_type = "open_id"
+    这个receive_id_type似乎关系到后面发给谁
+    """
+
+    if (header.event_type == "im.message.receive_v1"):
+        event_id = header.event_id
+        message = event.message
+        construct_bot_request(message)
+        request_dic[event_id] = message
+        logger.info(f"receive_id_type={header.receive_id_type}")
 
     response = await make_response(decrypt_json)
     response.status_code = 200
@@ -148,6 +214,18 @@ def clear_request_dict():
         for key in keys_to_delete:
             request_dic.pop(key)
         time.sleep(60)
+
+
+def construct_bot_request(data):
+    session_id = f"wecom-{str(data.source)}" or "wecom-default_session"
+    user_id = data.source
+    username = client.user.get(user_id) or "某人"
+    message = data.content
+    logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
+    with lock:
+        bot_request = BotRequest(session_id, user_id, username,
+                                 message, str(int(time.time() * 1000)))
+    return bot_request
 
 
 async def start_task():
