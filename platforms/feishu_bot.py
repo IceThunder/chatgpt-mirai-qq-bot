@@ -69,6 +69,19 @@ class AESCipher(object):
         return self.decrypt(enc).decode('utf8')
 
 
+class Obj(dict):
+    def __init__(self, d):
+        for a, b in d.items():
+            if isinstance(b, (list, tuple)):
+                setattr(self, a, [Obj(x) if isinstance(x, dict) else x for x in b])
+            else:
+                setattr(self, a, Obj(b) if isinstance(b, dict) else b)
+
+
+def dict_2_obj(d: dict):
+    return Obj(d)
+
+
 def validate(my_request, encrypt_key):
     timestamp = my_request.headers.get("X-Lark-Request-Timestamp")
     nonce = my_request.headers.get("X-Lark-Request-Nonce")
@@ -108,9 +121,10 @@ async def event():
     logger.info("decrypt")
     encrypt_json = await request.get_json()
     logger.info(f"encrypt_json={encrypt_json}")
-    decrypt_json = decryptJson(encrypt_json)
-    logger.info(f"decrypt_json={decrypt_json}")
+    decrypt_string = decryptJson(encrypt_json)
+    logger.info(f"decrypt_string={decrypt_string}")
 
+    decrypt_json = dict_2_obj(decrypt_string)
     header = decrypt_json.header
     if header.token != Token:
         logger.info(f"header.get(‘token’)={header.token}")
