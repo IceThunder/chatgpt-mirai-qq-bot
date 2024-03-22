@@ -43,19 +43,6 @@ class InvalidEventException(Exception):
         return "Invalid event: {}".format(self.error_info)
 
 
-class Obj(dict):
-    def __init__(self, d):
-        for a, b in d.items():
-            if isinstance(b, (list, tuple)):
-                setattr(self, a, [Obj(x) if isinstance(x, dict) else x for x in b])
-            else:
-                setattr(self, a, Obj(b) if isinstance(b, dict) else b)
-
-
-def dict_2_obj(d: dict):
-    return Obj(d)
-
-
 class AESCipher(object):
     def __init__(self, key):
         self.bs = AES.block_size
@@ -97,7 +84,7 @@ def validate(my_request, encrypt_key):
 def decryptJson(encrypt_json):
     logger.info(f"encrypt.get('encrypt')={encrypt_json.get('encrypt')}")
     cipher = AESCipher(EncryptKey)
-    return dict_2_obj(cipher.decrypt_string(encrypt_json.get('encrypt')))
+    return cipher.decrypt_string(encrypt_json.get('encrypt'))
 
 
 """
@@ -124,8 +111,9 @@ async def event():
     decrypt_json = decryptJson(encrypt_json)
     logger.info(f"decrypt_json={decrypt_json}")
 
-    if decrypt_json.header.token != Token:
-        logger.info(f"decrypt_json.header.token={decrypt_json.header.token}")
+    header = decrypt_json.get("header")
+    if header.get("token") != Token:
+        logger.info(f"header.get(‘token’)={header.get('token')}")
         raise InvalidEventException("invalid token")
 
     response = await make_response(decrypt_json)
