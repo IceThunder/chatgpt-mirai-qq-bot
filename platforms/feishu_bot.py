@@ -71,6 +71,7 @@ class AESCipher(object):
 
 def validate(my_request, encrypt_key):
     if my_request.headers.get("token") != Token:
+        logger.info(f"my_request.headers.token={my_request.headers.get('token')}")
         raise InvalidEventException("invalid token")
     timestamp = my_request.headers.get("X-Lark-Request-Timestamp")
     nonce = my_request.headers.get("X-Lark-Request-Nonce")
