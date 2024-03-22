@@ -171,7 +171,6 @@ async def event():
 
     decrypt_json = dict_2_obj(decrypt_string)
     header = decrypt_json.header
-    event = decrypt_json.event
     if header.token != Token:
         logger.info(f"header.get(‘token’)={header.token}")
         raise InvalidEventException("invalid token")
@@ -189,16 +188,62 @@ async def event():
     这个receive_id_type似乎关系到后面发给谁
     """
 
-    if (header.event_type == "im.message.receive_v1"):
-        event_id = header.event_id
-        message = event.message
-        construct_bot_request(message)
-        request_dic[event_id] = message
-        logger.info(f"receive_id_type={header.receive_id_type}")
+    if header.event_type == "im.message.receive_v1":
+        event_json = decrypt_json.event
+        if event_json.message.chat_type == "group":
+            logger.info(f"event.chat_type=group")
+        elif event_json.message.chat_type == "p2p":
+            logger.info(f"event.chat_type=p2p")
+            event_id = header.event_id
+            bot_request = construct_bot_request(event_json)
+            request_dic[event_id] = bot_request
+            asyncio.create_task(process_request(bot_request))
+            request_dic[bot_request.request_time] = bot_request
 
-    response = await make_response(decrypt_json)
+            response = await make_response("ok")
+            response.status_code = 200
+            return response
+
+
+    response = await make_response("ok")
     response.status_code = 200
     return response
+
+
+async def reply(bot_request: BotRequest):
+    UserId = bot_request.user_id
+    response = bot_request.result.to_json()
+    if bot_request.done:
+        request_dic.pop(bot_request.request_time)
+    else:
+        bot_request.result.pop_all()
+    logger.debug(
+        f"Bot request {bot_request.request_time} response -> \n{response[:100]}")
+    # if bot_request.result.message:
+    #     for msg in bot_request.result.message:
+    #         result = client.message.send_text(AgentId, UserId, msg)
+    #         logger.debug(f"Send message result -> {result}")
+    # if bot_request.result.voice:
+    #     for voice in bot_request.result.voice:
+    #         # convert mp3 to amr
+    #         voice = convert_mp3_to_amr(voice)
+    #         voice_id = client.media.upload(
+    #             "voice", voice)["media_id"]
+    #         result = client.message.send_voice(AgentId, UserId, voice_id)
+    #         logger.debug(f"Send voice result -> {result}")
+    # if bot_request.result.image:
+    #     for image in bot_request.result.image:
+    #         image_id = client.media.upload(
+    #             "image", BytesIO(base64.b64decode(image)))["media_id"]
+    #         result = client.message.send_image(AgentId, UserId, image_id)
+    #         logger.debug(f"Send image result -> {result}")
+
+
+def convert_mp3_to_amr(mp3):
+    mp3 = BytesIO(base64.b64decode(mp3))
+    amr = BytesIO()
+    AudioSegment.from_file(mp3,format="mp3").set_frame_rate(8000).set_channels(1).export(amr, format="amr", codec="libopencore_amrnb")
+    return amr
 
 
 def clear_request_dict():
@@ -217,15 +262,53 @@ def clear_request_dict():
 
 
 def construct_bot_request(data):
-    session_id = f"wecom-{str(data.source)}" or "wecom-default_session"
-    user_id = data.source
-    username = client.user.get(user_id) or "某人"
-    message = data.content
+    session_id = f"feishu-{str(data.message.chat_id)}" or "wecom-default_session"
+    user_id = data.sender.user_id
+    username = "某人"
+    message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
     with lock:
         bot_request = BotRequest(session_id, user_id, username,
                                  message, str(int(time.time() * 1000)))
     return bot_request
+
+
+async def process_request(bot_request: BotRequest):
+    async def response(msg):
+        logger.info(f"Got response msg -> {type(msg)} -> {msg}")
+        _resp = msg
+        if not isinstance(msg, MessageChain):
+            _resp = MessageChain(msg)
+        for ele in _resp:
+            if isinstance(ele, Plain) and str(ele):
+                bot_request.append_result("message", str(ele))
+            elif isinstance(ele, Image):
+                bot_request.append_result(
+                    "image", ele.base64)
+            elif isinstance(ele, Voice):
+                # mp3
+                bot_request.append_result(
+                    "voice", ele.base64)
+            else:
+                logger.warning(
+                    f"Unsupported message -> {type(ele)} -> {str(ele)}")
+                bot_request.append_result("message", str(ele))
+    logger.debug(f"Start to process bot request {bot_request.request_time}.")
+    if bot_request.message is None or not str(bot_request.message).strip():
+        await response("message 不能为空!")
+        bot_request.set_result_status(RESPONSE_FAILED)
+    else:
+        await handle_message(
+            response,
+            bot_request.session_id,
+            bot_request.message,
+            nickname=bot_request.username,
+            request_from=constants.BotPlatform.WecomBot
+        )
+        bot_request.set_result_status(RESPONSE_DONE)
+    bot_request.done = True
+    logger.debug(f"Bot request {bot_request.request_time} done.")
+    await reply(bot_request)
 
 
 async def start_task():
