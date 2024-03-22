@@ -314,7 +314,7 @@ def clear_request_dict():
 
 def construct_bot_request(data):
     session_id = f"feishu-{str(data.message.chat_id)}" or "feishu-default_session"
-    user_id = data.sender.open_id
+    user_id = data.sender.sender_id.open_id
     username = "某人"
     message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
