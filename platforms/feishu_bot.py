@@ -43,26 +43,31 @@ class InvalidEventException(Exception):
         return "Invalid event: {}".format(self.error_info)
 
 
-class  AESCipher(object):
+class AESCipher(object):
     def __init__(self, key):
         self.bs = AES.block_size
-        self.key=hashlib.sha256(AESCipher.str_to_bytes(key)).digest()
+        self.key = hashlib.sha256(AESCipher.str_to_bytes(key)).digest()
+
     @staticmethod
     def str_to_bytes(data):
         u_type = type(b"".decode('utf8'))
         if isinstance(data, u_type):
             return data.encode('utf8')
         return data
+
     @staticmethod
     def _unpad(s):
         return s[:-ord(s[len(s) - 1:])]
+
     def decrypt(self, enc):
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return  self._unpad(cipher.decrypt(enc[AES.block_size:]))
+        return self._unpad(cipher.decrypt(enc[AES.block_size:]))
+
     def decrypt_string(self, enc):
         enc = base64.b64decode(enc)
-        return  self.decrypt(enc).decode('utf8')
+        return self.decrypt(enc).decode('utf8')
+
 
 def validate(request, encrypt_key):
     if request.header.token != Token:
@@ -78,6 +83,12 @@ def validate(request, encrypt_key):
         raise InvalidEventException("invalid signature in event")
 
 
+def decryptJson(encrypt_json):
+    logger.info(f"encrypt.get('encrypt')={encrypt_json.get('encrypt')}")
+    cipher = AESCipher(EncryptKey)
+    return cipher.decrypt_string(encrypt_json.get('encrypt'))
+
+
 """
     先判断event_type == im.message.receive_v1 (或者是v2的消息体)
     msg = event.get("message")
@@ -90,17 +101,17 @@ def validate(request, encrypt_key):
             receive_id_type = "open_id"
     这个receive_id_type似乎关系到后面发给谁
     """
+
+
 @app.route("/event", methods=["POST"])
 async def event():
-    logger.info("1")
+    logger.info("validate")
     validate(Token, EncryptKey)
-    logger.info("go event")
-    encrypt = await request.get_json()
-    logger.info(f"encrypt={encrypt}")
-    logger.info(f"encrypt.get('encrypt')={encrypt.get('encrypt')}")
-    cipher = AESCipher(EncryptKey)
-    decrypt = cipher.decrypt_string(encrypt.get('encrypt'))
-    response = await make_response(decrypt)
+    logger.info("decrypt")
+    encrypt_json = await request.get_json()
+    decrypt_json = decryptJson(encrypt_json)
+    logger.info(f"decrypt_json={decrypt_json}")
+    response = await make_response(decrypt_json)
     response.status_code = 200
     return response
 
@@ -111,7 +122,7 @@ def clear_request_dict():
         now = time.time()
         keys_to_delete = []
         for key, bot_request in request_dic.items():
-            if now - int(key)/1000 > 600:
+            if now - int(key) / 1000 > 600:
                 logger.debug(f"Remove time out request -> {key}|{bot_request.session_id}|{bot_request.username}"
                              f"|{bot_request.message}")
                 keys_to_delete.append(key)
