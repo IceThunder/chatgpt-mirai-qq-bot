@@ -6,6 +6,10 @@ import hashlib
 import base64
 from Crypto.Cipher import AES
 from io import BytesIO
+
+from lark_oapi.api.im.v1 import (CreateMessageResponse, CreateMessageRequest,
+                                 CreateMessageRequestBody, CreateImageRequest,
+                                 CreateImageRequestBody)
 from loguru import logger
 from pydub import AudioSegment
 from quart import Quart, request, abort, make_response
@@ -18,12 +22,15 @@ import constants
 from constants import config
 from universal import handle_message
 
+import lark_oapi as lark
+
 Port = config.feishu.port
 AppId = config.feishu.app_id
 AppSecret = config.feishu.app_secret
 Token = config.feishu.token
 EncryptKey = config.feishu.encrypt_key
-# client = lark.Client.builder().app_id(AppId).app_secret(AppSecret).build()
+# 创建client
+client = lark.Client.builder().app_id(AppId).app_secret(AppSecret).log_level(lark.LogLevel.DEBUG).build()
 app = Quart(__name__)
 
 lock = threading.Lock()
@@ -141,6 +148,70 @@ def dict_2_obj(d: dict):
     return Obj(d)
 
 
+def _send_text(receive_id, msg):
+    # 发送消息
+    option = lark.RequestOption.builder().build()
+    create_message_req = CreateMessageRequest.builder() \
+        .receive_id_type("open_id") \
+        .request_body(CreateMessageRequestBody.builder()
+                      .receive_id(receive_id)
+                      .msg_type("text")
+                      .content(lark.JSON.marshal(msg))
+                      .build()) \
+        .build()
+
+    create_message_resp: CreateMessageResponse = client.im.v1.message.create(create_message_req, option)
+
+    if not create_message_resp.success():
+        lark.logger.error(
+            f"client.im.v1.message.create failed, "
+            f"code: {create_message_resp.code}, "
+            f"msg: {create_message_resp.msg}, "
+            f"log_id: {create_message_resp.get_log_id()}")
+    return create_message_resp
+
+
+def _send_image(receive_id, image):
+    # 上传文件
+    create_image_req = CreateImageRequest.builder() \
+        .request_body(CreateImageRequestBody.builder()
+                      .image_type("message")
+                      .image(image)
+                      .build()) \
+        .build()
+
+    create_image_resp = client.im.v1.image.create(create_image_req)
+
+    if not create_image_resp.success():
+        lark.logger.error(
+            f"client.im.v1.image.create failed, "
+            f"code: {create_image_resp.code}, "
+            f"msg: {create_image_resp.msg}, "
+            f"log_id: {create_image_resp.get_log_id()}")
+        return create_image_resp
+
+    # 发送消息
+    option = lark.RequestOption.builder().headers({"X-Tt-Logid": create_image_resp.get_log_id()}).build()
+    create_message_req = CreateMessageRequest.builder() \
+        .receive_id_type("open_id") \
+        .request_body(CreateMessageRequestBody.builder()
+                      .receive_id(receive_id)
+                      .msg_type("text")
+                      .content(lark.JSON.marshal(create_image_resp.data))
+                      .build()) \
+        .build()
+
+    create_message_resp: CreateMessageResponse = client.im.v1.message.create(create_message_req, option)
+
+    if not create_message_resp.success():
+        lark.logger.error(
+            f"client.im.v1.message.create failed, "
+            f"code: {create_message_resp.code}, "
+            f"msg: {create_message_resp.msg}, "
+            f"log_id: {create_message_resp.get_log_id()}")
+    return create_message_resp
+
+
 def validate(my_request, encrypt_key):
     timestamp = my_request.headers.get("X-Lark-Request-Timestamp")
     nonce = my_request.headers.get("X-Lark-Request-Nonce")
@@ -153,7 +224,7 @@ def validate(my_request, encrypt_key):
         raise InvalidEventException("invalid signature in event")
 
 
-def decryptJson(encrypt_json):
+def _decrypt_json(encrypt_json):
     logger.info(f"encrypt.get('encrypt')={encrypt_json.get('encrypt')}")
     cipher = AESCipher(EncryptKey)
     return json.loads(cipher.decrypt_string(encrypt_json.get('encrypt')))
@@ -161,12 +232,10 @@ def decryptJson(encrypt_json):
 
 @app.route("/event", methods=["POST"])
 async def event():
-    # logger.info("validate")
-    # validate(request, EncryptKey)
     logger.info("decrypt")
     encrypt_json = await request.get_json()
     logger.info(f"encrypt_json={encrypt_json}")
-    decrypt_string = decryptJson(encrypt_json)
+    decrypt_string = _decrypt_json(encrypt_json)
     logger.info(f"decrypt_string={decrypt_string}")
 
     decrypt_json = dict_2_obj(decrypt_string)
@@ -204,7 +273,6 @@ async def event():
             response.status_code = 200
             return response
 
-
     response = await make_response("ok")
     response.status_code = 200
     return response
@@ -219,31 +287,14 @@ async def reply(bot_request: BotRequest):
         bot_request.result.pop_all()
     logger.debug(
         f"Bot request {bot_request.request_time} response -> \n{response[:100]}")
-    # if bot_request.result.message:
-    #     for msg in bot_request.result.message:
-    #         result = client.message.send_text(AgentId, UserId, msg)
-    #         logger.debug(f"Send message result -> {result}")
-    # if bot_request.result.voice:
-    #     for voice in bot_request.result.voice:
-    #         # convert mp3 to amr
-    #         voice = convert_mp3_to_amr(voice)
-    #         voice_id = client.media.upload(
-    #             "voice", voice)["media_id"]
-    #         result = client.message.send_voice(AgentId, UserId, voice_id)
-    #         logger.debug(f"Send voice result -> {result}")
-    # if bot_request.result.image:
-    #     for image in bot_request.result.image:
-    #         image_id = client.media.upload(
-    #             "image", BytesIO(base64.b64decode(image)))["media_id"]
-    #         result = client.message.send_image(AgentId, UserId, image_id)
-    #         logger.debug(f"Send image result -> {result}")
-
-
-def convert_mp3_to_amr(mp3):
-    mp3 = BytesIO(base64.b64decode(mp3))
-    amr = BytesIO()
-    AudioSegment.from_file(mp3,format="mp3").set_frame_rate(8000).set_channels(1).export(amr, format="amr", codec="libopencore_amrnb")
-    return amr
+    if bot_request.result.message:
+        for msg in bot_request.result.message:
+            result = _send_text(UserId, msg)
+            logger.debug(f"Send message result -> {result}")
+    if bot_request.result.image:
+        for image in bot_request.result.image:
+            result = _send_image(UserId, image)
+            logger.debug(f"Send image result -> {result}")
 
 
 def clear_request_dict():
@@ -262,8 +313,8 @@ def clear_request_dict():
 
 
 def construct_bot_request(data):
-    session_id = f"feishu-{str(data.message.chat_id)}" or "wecom-default_session"
-    user_id = data.sender.user_id
+    session_id = f"feishu-{str(data.message.chat_id)}" or "feishu-default_session"
+    user_id = data.sender.open_id
     username = "某人"
     message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
@@ -293,6 +344,7 @@ async def process_request(bot_request: BotRequest):
                 logger.warning(
                     f"Unsupported message -> {type(ele)} -> {str(ele)}")
                 bot_request.append_result("message", str(ele))
+
     logger.debug(f"Start to process bot request {bot_request.request_time}.")
     if bot_request.message is None or not str(bot_request.message).strip():
         await response("message 不能为空!")
