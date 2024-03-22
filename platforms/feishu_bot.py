@@ -84,7 +84,7 @@ def validate(my_request, encrypt_key):
 def decryptJson(encrypt_json):
     logger.info(f"encrypt.get('encrypt')={encrypt_json.get('encrypt')}")
     cipher = AESCipher(EncryptKey)
-    return cipher.decrypt_string(encrypt_json.get('encrypt'))
+    return json.loads(cipher.decrypt_string(encrypt_json.get('encrypt')))
 
 
 """
@@ -111,9 +111,9 @@ async def event():
     decrypt_json = decryptJson(encrypt_json)
     logger.info(f"decrypt_json={decrypt_json}")
 
-    header = decrypt_json.get("header")
-    if header.get("token") != Token:
-        logger.info(f"header.get(‘token’)={header.get('token')}")
+    header = decrypt_json.header
+    if header.token != Token:
+        logger.info(f"header.get(‘token’)={header.token}")
         raise InvalidEventException("invalid token")
 
     response = await make_response(decrypt_json)
