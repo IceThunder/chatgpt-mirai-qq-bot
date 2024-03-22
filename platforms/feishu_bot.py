@@ -156,7 +156,7 @@ def _send_text(receive_id, msg):
         .request_body(CreateMessageRequestBody.builder()
                       .receive_id(receive_id)
                       .msg_type("text")
-                      .content(lark.JSON.marshal(msg))
+                      .content(msg)
                       .build()) \
         .build()
 
