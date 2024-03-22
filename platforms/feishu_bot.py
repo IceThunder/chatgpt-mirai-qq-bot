@@ -69,13 +69,13 @@ class AESCipher(object):
         return self.decrypt(enc).decode('utf8')
 
 
-def validate(request, encrypt_key):
-    if request.headers.get("token") != Token:
+def validate(my_request, encrypt_key):
+    if my_request.headers.get("token") != Token:
         raise InvalidEventException("invalid token")
-    timestamp = request.headers.get("X-Lark-Request-Timestamp")
-    nonce = request.headers.get("X-Lark-Request-Nonce")
-    signature = request.headers.get("X-Lark-Signature")
-    body = request.data
+    timestamp = my_request.headers.get("X-Lark-Request-Timestamp")
+    nonce = my_request.headers.get("X-Lark-Request-Nonce")
+    signature = my_request.headers.get("X-Lark-Signature")
+    body = my_request.data
     bytes_b1 = (timestamp + nonce + encrypt_key).encode("utf-8")
     bytes_b = bytes_b1 + body
     h = hashlib.sha256(bytes_b)
@@ -106,7 +106,7 @@ def decryptJson(encrypt_json):
 @app.route("/event", methods=["POST"])
 async def event():
     logger.info("validate")
-    validate(Token, EncryptKey)
+    validate(request, EncryptKey)
     logger.info("decrypt")
     encrypt_json = await request.get_json()
     decrypt_json = decryptJson(encrypt_json)
