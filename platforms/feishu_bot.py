@@ -156,7 +156,7 @@ def _send_text(receive_id, msg):
         .request_body(CreateMessageRequestBody.builder()
                       .receive_id(receive_id)
                       .msg_type("text")
-                      .content(lark.JSON.marshal(msg))
+                      .content("{\"text\": {}}".format(msg))
                       .build()) \
         .build()
 
@@ -289,7 +289,6 @@ async def reply(bot_request: BotRequest):
         f"Bot request {bot_request.request_time} response -> \n{response[:100]}")
     if bot_request.result.message:
         for msg in bot_request.result.message:
-            logger.debug(f"Send message -> {msg}")
             result = _send_text(UserId, msg)
             logger.debug(f"Send message result -> {result}")
     if bot_request.result.image:
