@@ -167,7 +167,7 @@ def _send_text(receive_id_type, receive_id, msg):
 
 
 def _send_image(receive_id_type, receive_id, imagebase64):
-    imagebytes = base64.b64decode(imagebase64)
+    imagebytes = base64.b64decode("data:image/png;base64,{}".format(imagebase64))
     img_file = BytesIO(imagebytes)
     image = PILImage.open(img_file)
     # 上传图片
