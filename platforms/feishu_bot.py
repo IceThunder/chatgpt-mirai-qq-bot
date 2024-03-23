@@ -62,8 +62,6 @@ class BotRequest:
         with lock:
             if result_type == "message":
                 self.result.message.append(result)
-            elif result_type == "voice":
-                self.result.voice.append(result)
             elif result_type == "image":
                 self.result.image.append(result)
 
@@ -96,7 +94,6 @@ class ResponseResult:
         return json.dumps({
             'result': self.result_status,
             'message': self.message,
-            'voice': self.voice,
             'image': self.image
         })
 
@@ -259,19 +256,15 @@ async def event():
 
     if header.event_type == "im.message.receive_v1":
         event_json = decrypt_json.event
-        if event_json.message.chat_type == "group":
-            logger.info(f"event.chat_type=group")
-        elif event_json.message.chat_type == "p2p":
-            logger.info(f"event.chat_type=p2p")
-            event_id = header.event_id
-            bot_request = construct_bot_request(event_json)
-            request_dic[event_id] = bot_request
-            asyncio.create_task(process_request(bot_request))
-            request_dic[bot_request.request_time] = bot_request
+        event_id = header.event_id
+        bot_request = construct_bot_request(event_json)
+        request_dic[event_id] = bot_request
+        asyncio.create_task(process_request(bot_request))
+        request_dic[bot_request.request_time] = bot_request
 
-            response = await make_response("ok")
-            response.status_code = 200
-            return response
+        response = await make_response("ok")
+        response.status_code = 200
+        return response
 
     response = await make_response("ok")
     response.status_code = 200
@@ -314,7 +307,12 @@ def clear_request_dict():
 
 def construct_bot_request(data):
     session_id = f"feishu-{str(data.message.chat_id)}" or "feishu-default_session"
-    user_id = data.sender.sender_id.open_id
+    if data.message.chat_type == "group":
+        logger.info(f"event.chat_type=group")
+        user_id = data.message.chat_id
+    elif data.message.chat_type == "p2p":
+        logger.info(f"event.chat_type=p2p")
+        user_id = data.sender.sender_id.open_id
     username = "某人"
     message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
