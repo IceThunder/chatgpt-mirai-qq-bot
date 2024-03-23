@@ -240,9 +240,7 @@ async def event():
 
         if header.event_type == "im.message.receive_v1":
             event_json = decrypt_json.event
-            event_id = header.event_id
             bot_request = construct_bot_request(event_json)
-            request_dic[event_id] = bot_request
             asyncio.create_task(process_request(bot_request))
             request_dic[bot_request.request_time] = bot_request
 
