@@ -228,6 +228,7 @@ def _decrypt_json(encrypt_json):
 async def event():
     encrypt_json = await request.get_json()
     decrypt_string = _decrypt_json(encrypt_json)
+    logger.info(f"decrypt_string={decrypt_string}")
     decrypt_json = dict_2_obj(decrypt_string)
     try:
         header = decrypt_json.header
