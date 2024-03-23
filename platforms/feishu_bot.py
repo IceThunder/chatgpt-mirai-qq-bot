@@ -84,7 +84,6 @@ class ResponseResult:
     def pop_all(self):
         with lock:
             self.message = []
-            self.voice = []
             self.image = []
 
     def to_json(self):
@@ -170,7 +169,7 @@ def _send_image(receive_id_type, receive_id, image):
     create_image_req = CreateImageRequest.builder() \
         .request_body(CreateImageRequestBody.builder()
                       .image_type("message")
-                      .image(image)
+                      .image(base64.b64decode(image))
                       .build()) \
         .build()
 
