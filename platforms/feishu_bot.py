@@ -266,6 +266,7 @@ async def event():
 async def reply(bot_request: BotRequest):
     UserId = bot_request.user_id
     receive_id_type = bot_request.receive_id_type
+    logger.info(f"result: {bot_request.result.to_json()}")
     response = bot_request.result.to_json()
     if bot_request.done:
         request_dic.pop(bot_request.request_time)
