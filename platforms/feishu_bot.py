@@ -235,41 +235,33 @@ async def event():
     logger.info(f"encrypt_json={encrypt_json}")
     decrypt_string = _decrypt_json(encrypt_json)
     logger.info(f"decrypt_string={decrypt_string}")
-
     decrypt_json = dict_2_obj(decrypt_string)
-    header = decrypt_json.header
-    if header.token != Token:
-        logger.info(f"header.get(‘token’)={header.token}")
-        raise InvalidEventException("invalid token")
 
-    """
-    先判断event_type == im.message.receive_v1 (或者是v2的消息体)
-    msg = event.get("message")
-    幂等判断消息是否重复（通过msg.get("message_id")）
-    判断msg.get("chat_type")
-        group
-            判断@的相关处理
-            receive_id_type = "chat_id"
-        p2p
-            receive_id_type = "open_id"
-    这个receive_id_type似乎关系到后面发给谁
-    """
+    if "type" in decrypt_json and decrypt_json.type == "'url_verification":
+        response = await make_response(decrypt_json)
+        response.status_code = 200
+        return response
+    else:
+        header = decrypt_json.header
+        if header.token != Token:
+            logger.info(f"header.get(‘token’)={header.token}")
+            raise InvalidEventException("invalid token")
 
-    if header.event_type == "im.message.receive_v1":
-        event_json = decrypt_json.event
-        event_id = header.event_id
-        bot_request = construct_bot_request(event_json)
-        request_dic[event_id] = bot_request
-        asyncio.create_task(process_request(bot_request))
-        request_dic[bot_request.request_time] = bot_request
+        if header.event_type == "im.message.receive_v1":
+            event_json = decrypt_json.event
+            event_id = header.event_id
+            bot_request = construct_bot_request(event_json)
+            request_dic[event_id] = bot_request
+            asyncio.create_task(process_request(bot_request))
+            request_dic[bot_request.request_time] = bot_request
+
+            response = await make_response("ok")
+            response.status_code = 200
+            return response
 
         response = await make_response("ok")
         response.status_code = 200
         return response
-
-    response = await make_response("ok")
-    response.status_code = 200
-    return response
 
 
 async def reply(bot_request: BotRequest):
