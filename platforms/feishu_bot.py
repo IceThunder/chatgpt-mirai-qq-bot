@@ -6,6 +6,7 @@ import threading
 import time
 
 import lark_oapi as lark
+from io import BytesIO
 from Crypto.Cipher import AES
 from graia.ariadne.message.chain import MessageChain
 from graia.ariadne.message.element import Image
@@ -164,12 +165,15 @@ def _send_text(receive_id_type, receive_id, msg):
     return create_message_resp
 
 
-def _send_image(receive_id_type, receive_id, image):
-    # 上传文件
+def _send_image(receive_id_type, receive_id, imagebase64):
+    imagebytes = base64.b64decode(imagebase64)
+    img_file = BytesIO(imagebytes)
+    image = Image.open(img_file)
+    # 上传图片
     create_image_req = CreateImageRequest.builder() \
         .request_body(CreateImageRequestBody.builder()
                       .image_type("message")
-                      .image(base64.b64decode(image))
+                      .image(image)
                       .build()) \
         .build()
 
