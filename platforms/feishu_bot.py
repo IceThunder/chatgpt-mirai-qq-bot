@@ -226,16 +226,12 @@ def _decrypt_json(encrypt_json):
 
 @app.route("/event", methods=["POST"])
 async def event():
-    logger.info("decrypt")
     encrypt_json = await request.get_json()
-    logger.info(f"encrypt_json={encrypt_json}")
     decrypt_string = _decrypt_json(encrypt_json)
-    logger.info(f"decrypt_string={decrypt_string}")
     decrypt_json = dict_2_obj(decrypt_string)
     try:
         header = decrypt_json.header
         if header.token != Token:
-            logger.info(f"header.get(‘token’)={header.token}")
             raise InvalidEventException("invalid token")
 
         if header.event_type == "im.message.receive_v1":
@@ -303,11 +299,9 @@ def construct_bot_request(data):
     session_id = f"feishu-{str(data.message.chat_id)}" or "feishu-default_session"
     chat_type = data.message.chat_type
     if chat_type == "group":
-        logger.info(f"event.chat_type=group")
         user_id = data.message.chat_id
         receive_id_type = "chat_id"
     elif chat_type == "p2p":
-        logger.info(f"event.chat_type=p2p")
         user_id = data.sender.sender_id.open_id
         receive_id_type = "open_id"
     username = "某人"
