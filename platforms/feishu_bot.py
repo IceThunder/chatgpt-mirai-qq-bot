@@ -43,9 +43,10 @@ RESPONSE_DONE = "DONE"
 
 
 class BotRequest:
-    def __init__(self, session_id, user_id, username, message, request_time):
+    def __init__(self, session_id, user_id, receive_id_type, username, message, request_time):
         self.session_id: str = session_id
         self.user_id: str = user_id
+        self.receive_id_type: str = receive_id_type
         self.username: str = username
         self.message: str = message
         self.result: ResponseResult = ResponseResult()
@@ -145,11 +146,11 @@ def dict_2_obj(d: dict):
     return Obj(d)
 
 
-def _send_text(receive_id, msg):
+def _send_text(receive_id_type, receive_id, msg):
     # 发送消息
     option = lark.RequestOption.builder().build()
     create_message_req = CreateMessageRequest.builder() \
-        .receive_id_type("open_id") \
+        .receive_id_type(receive_id_type) \
         .request_body(CreateMessageRequestBody.builder()
                       .receive_id(receive_id)
                       .msg_type("text")
@@ -168,7 +169,7 @@ def _send_text(receive_id, msg):
     return create_message_resp
 
 
-def _send_image(receive_id, image):
+def _send_image(receive_id_type, receive_id, image):
     # 上传文件
     create_image_req = CreateImageRequest.builder() \
         .request_body(CreateImageRequestBody.builder()
@@ -190,7 +191,7 @@ def _send_image(receive_id, image):
     # 发送消息
     option = lark.RequestOption.builder().headers({"X-Tt-Logid": create_image_resp.get_log_id()}).build()
     create_message_req = CreateMessageRequest.builder() \
-        .receive_id_type("open_id") \
+        .receive_id_type(receive_id_type) \
         .request_body(CreateMessageRequestBody.builder()
                       .receive_id(receive_id)
                       .msg_type("text")
@@ -273,6 +274,7 @@ async def event():
 
 async def reply(bot_request: BotRequest):
     UserId = bot_request.user_id
+    receive_id_type = bot_request.receive_id_type
     response = bot_request.result.to_json()
     if bot_request.done:
         request_dic.pop(bot_request.request_time)
@@ -282,11 +284,11 @@ async def reply(bot_request: BotRequest):
         f"Bot request {bot_request.request_time} response -> \n{response[:100]}")
     if bot_request.result.message:
         for msg in bot_request.result.message:
-            result = _send_text(UserId, msg)
+            result = _send_text(receive_id_type, UserId, msg)
             logger.debug(f"Send message result -> {result}")
     if bot_request.result.image:
         for image in bot_request.result.image:
-            result = _send_image(UserId, image)
+            result = _send_image(receive_id_type, UserId, image)
             logger.debug(f"Send image result -> {result}")
 
 
@@ -307,17 +309,20 @@ def clear_request_dict():
 
 def construct_bot_request(data):
     session_id = f"feishu-{str(data.message.chat_id)}" or "feishu-default_session"
-    if data.message.chat_type == "group":
+    chat_type = data.message.chat_type
+    if chat_type == "group":
         logger.info(f"event.chat_type=group")
         user_id = data.message.chat_id
-    elif data.message.chat_type == "p2p":
+        receive_id_type = "chat_id"
+    elif chat_type == "p2p":
         logger.info(f"event.chat_type=p2p")
         user_id = data.sender.sender_id.open_id
+        receive_id_type = "open_id"
     username = "某人"
     message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
     with lock:
-        bot_request = BotRequest(session_id, user_id, username,
+        bot_request = BotRequest(session_id, user_id, receive_id_type, username,
                                  message, str(int(time.time() * 1000)))
     return bot_request
 
@@ -334,10 +339,6 @@ async def process_request(bot_request: BotRequest):
             elif isinstance(ele, Image):
                 bot_request.append_result(
                     "image", ele.base64)
-            elif isinstance(ele, Voice):
-                # mp3
-                bot_request.append_result(
-                    "voice", ele.base64)
             else:
                 logger.warning(
                     f"Unsupported message -> {type(ele)} -> {str(ele)}")
