@@ -259,7 +259,7 @@ async def event():
         return response
     except AttributeError:
         if decrypt_json.type == "url_verification":
-            response = await make_response(decrypt_json)
+            response = await make_response(decrypt_string)
             response.status_code = 200
             return response
         else:
