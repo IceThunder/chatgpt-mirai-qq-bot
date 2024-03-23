@@ -6,10 +6,11 @@ import threading
 import time
 
 import lark_oapi as lark
+from PIL import Image
 from io import BytesIO
 from Crypto.Cipher import AES
 from graia.ariadne.message.chain import MessageChain
-from graia.ariadne.message.element import Image
+# from graia.ariadne.message.element import Image
 from graia.ariadne.message.element import Plain
 from lark_oapi.api.im.v1 import (CreateMessageResponse, CreateMessageRequest,
                                  CreateMessageRequestBody, CreateImageRequest,
