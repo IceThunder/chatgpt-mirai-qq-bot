@@ -193,7 +193,7 @@ def _send_image(receive_id_type, receive_id, imagebase64):
         .receive_id_type(receive_id_type) \
         .request_body(CreateMessageRequestBody.builder()
                       .receive_id(receive_id)
-                      .msg_type("text")
+                      .msg_type("image")
                       .content(lark.JSON.marshal(create_image_resp.data))
                       .build()) \
         .build()
