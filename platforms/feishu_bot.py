@@ -305,10 +305,7 @@ def construct_bot_request(data):
         user_id = data.sender.sender_id.open_id
         receive_id_type = "open_id"
     username = "某人"
-    try:
-        message = json.loads(data.message.content).text
-    except AttributeError:
-        message = json.loads(data.message.content)
+    message = data.message.content
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
     with lock:
         bot_request = BotRequest(session_id, user_id, receive_id_type, username,
@@ -334,7 +331,6 @@ async def process_request(bot_request: BotRequest):
                 bot_request.append_result("message", str(ele))
 
     logger.debug(f"Start to process bot request {bot_request.request_time}.")
-    logger.debug(f"Start to process bot request message {bot_request.message}.")
     if bot_request.message is None or not str(bot_request.message).strip():
         await response("message 不能为空!")
         bot_request.set_result_status(RESPONSE_FAILED)
