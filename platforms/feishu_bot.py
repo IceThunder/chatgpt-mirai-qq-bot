@@ -237,7 +237,7 @@ async def event():
     logger.info(f"decrypt_string={decrypt_string}")
     decrypt_json = dict_2_obj(decrypt_string)
 
-    if "type" in decrypt_json and decrypt_json.type == "'url_verification":
+    if decrypt_json.__contains__("type") and decrypt_json.type == "'url_verification":
         response = await make_response(decrypt_json)
         response.status_code = 200
         return response
