@@ -236,18 +236,7 @@ async def event():
     decrypt_string = _decrypt_json(encrypt_json)
     logger.info(f"decrypt_string={decrypt_string}")
     decrypt_json = dict_2_obj(decrypt_string)
-
-    logger.info(f"has type? :{decrypt_json.typep}")
-    if 'type' in decrypt_json:
-        if decrypt_json.type == "url_verification":
-            response = await make_response(decrypt_json)
-            response.status_code = 200
-            return response
-        else:
-            response = await make_response()
-            response.status_code = 404
-            return response
-    else:
+    try:
         header = decrypt_json.header
         if header.token != Token:
             logger.info(f"header.get(‘token’)={header.token}")
@@ -268,6 +257,15 @@ async def event():
         response = await make_response("ok")
         response.status_code = 200
         return response
+    except AttributeError:
+        if decrypt_json.type == "url_verification":
+            response = await make_response(decrypt_json)
+            response.status_code = 200
+            return response
+        else:
+            response = await make_response()
+            response.status_code = 404
+            return response
 
 
 async def reply(bot_request: BotRequest):
