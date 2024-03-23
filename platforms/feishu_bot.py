@@ -307,7 +307,9 @@ def construct_bot_request(data):
         user_id = data.sender.sender_id.open_id
         receive_id_type = "open_id"
     username = "某人"
-    message = data.message.content
+    message = json.loads(data.message.content)
+    if message.get("text") is not None:
+        message = message.text
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
     with lock:
         bot_request = BotRequest(session_id, user_id, receive_id_type, username,
