@@ -306,9 +306,9 @@ def construct_bot_request(data):
         receive_id_type = "open_id"
     username = "某人"
     try:
-        message = data.message.content.text
+        message = json.loads(data.message.content).text
     except AttributeError:
-        message = data.message.content
+        message = json.loads(data.message.content)
     logger.info(f"Get message from {session_id}[{user_id}]:\n{message}")
     with lock:
         bot_request = BotRequest(session_id, user_id, receive_id_type, username,
