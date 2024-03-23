@@ -1,28 +1,24 @@
+import asyncio
+import base64
+import hashlib
 import json
 import threading
 import time
-import asyncio
-import hashlib
-import base64
-from Crypto.Cipher import AES
-from io import BytesIO
 
+import lark_oapi as lark
+from Crypto.Cipher import AES
+from graia.ariadne.message.chain import MessageChain
+from graia.ariadne.message.element import Image
+from graia.ariadne.message.element import Plain
 from lark_oapi.api.im.v1 import (CreateMessageResponse, CreateMessageRequest,
                                  CreateMessageRequestBody, CreateImageRequest,
                                  CreateImageRequestBody)
 from loguru import logger
-from pydub import AudioSegment
-from quart import Quart, request, abort, make_response
-
-from graia.ariadne.message.chain import MessageChain
-from graia.ariadne.message.element import Image, Voice
-from graia.ariadne.message.element import Plain
+from quart import Quart, request, make_response
 
 import constants
 from constants import config
 from universal import handle_message
-
-import lark_oapi as lark
 
 Port = config.feishu.port
 AppId = config.feishu.app_id
