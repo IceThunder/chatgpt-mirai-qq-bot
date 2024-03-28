@@ -78,6 +78,21 @@ class WecomBot(BaseModel):
     """企业微信应用 API 令牌 的 EncodingAESKey"""
 
 
+class LineBot(BaseModel):
+    host: str = "0.0.0.0"
+    """Line Webhook Url，需要能够被公网访问，0.0.0.0则不限制访问地址"""
+    port: int = 7001
+    """Http service port, 默认7001"""
+    debug: bool = False
+    """是否开启debug，错误时展示日志"""
+    channel_secret: str
+    """Line Channel 的 Secret"""
+    assertion_signing_key: str
+    """Line Channel 的 AssertionSigningKey"""
+    channel_access_token: str
+    """Line Message API 的 access_token"""
+
+
 class OpenAIParams(BaseModel):
     temperature: float = 0.5
     max_tokens: int = 4000
@@ -560,6 +575,7 @@ class Config(BaseModel):
     discord: Optional[DiscordBot] = None
     http: Optional[HttpService] = None
     wecom: Optional[WecomBot] = None
+    line: Optional[LineBot] = None
 
     # === Account Settings ===
     openai: OpenAIAuths = OpenAIAuths()

@@ -49,6 +49,11 @@ if config.wecom:
     from platforms.wecom_bot import start_task
 
     bots.append(loop.create_task(start_task()))
+if config.line:
+    logger.info("检测到 Line 配置，将启动 Line Bot 模式……")
+    from platforms.line_bot import start_task
+
+    bots.append(loop.create_task(start_task()))
 try:
     logger.info("[Edge TTS] 读取 Edge TTS 可用音色列表……")
     loop.run_until_complete(load_edge_tts_voices())
